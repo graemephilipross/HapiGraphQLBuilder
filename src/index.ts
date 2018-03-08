@@ -106,9 +106,9 @@ export interface IConfig {
 };
 
 export const MakeExecutableSchema = (config: IConfig): GraphQLSchema => {
-  let schema = new Schema(config.path);
+  let schema: ISchema = new Schema(config.path);
   if (config.auth) {
-    return GraphQLSchemaFactory(new SchemaWithAuth(schema));
+    schema = new SchemaWithAuth(schema);
   }
   return GraphQLSchemaFactory(schema);
 }
