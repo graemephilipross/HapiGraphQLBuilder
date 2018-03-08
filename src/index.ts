@@ -78,22 +78,6 @@ export class Schema implements ISchema {
   }
 }
 
-// const applyAuth = {
-//   apply (target, ctx, args) {
-//     const [, , context] = args;
-//     // no auth on resolver
-//     if (!target.authentication || target.authentication.length === 0) {
-//       return target(...args);
-//     }
-//     if (context.auth.credentials && context.auth.credentials.scope) {
-//       if (context.auth.credentials.scope.some(v => target.authentication.includes(v))) {
-//         return target(...args);
-//       }
-//     }
-//     return new Error('Invalid auth scope to access resolver');
-//   }
-// };
-
 export class SchemaWithAuth implements ISchema {
   private _modules: IModule[];
 
@@ -124,11 +108,10 @@ export class SchemaWithAuth implements ISchema {
     Object.entries(resolvers || []).reduce((acc, [resolverName, resolver]) => {
       let resolverWithAuth = resolver;
       if (authentication) {
-        // HERE ATTACHING PROP
-        resolver.authentication = moduleName
+        const auth = moduleName
         ? authentication[moduleName] && authentication[moduleName][resolverName]
         : authentication[resolverName];
-        resolverWithAuth = new Proxy<Resolver>(resolver, applyAuth);
+        resolverWithAuth = new Proxy<Resolver>(resolver, applyAuth(auth));
       }
       acc = Object.assign({}, { [resolverName]: resolverWithAuth }, acc);
       return acc;
@@ -159,3 +142,21 @@ export const MakeExecutableSchema = (config: IConfig): GraphQLSchema => {
   }
   return GraphQLSchemaFactory(schema);
 }
+
+function applyAuth(authentication: any) {
+  return {
+    apply (target, ctx, args) {
+      const [, , context] = args;
+      // no auth on resolver
+      if (!target.authentication || target.authentication.length === 0) {
+        return target(...args);
+      }
+      if (context.auth.credentials && context.auth.credentials.scope) {
+        if (context.auth.credentials.scope.some(v => target.authentication.includes(v))) {
+          return target(...args);
+        }
+      }
+      return new Error('Invalid auth scope to access resolver');
+    }
+  }
+};
