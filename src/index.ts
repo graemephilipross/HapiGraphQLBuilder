@@ -50,10 +50,15 @@ export class ModulesFactory {
 export interface ISchema {
   getResolvers(): IResolver[];
   getTypeDefs(): string[];
+  Modules: IModule[];
 }
 
 export class Schema implements ISchema {
   private _modules: IModule[];
+
+  get Modules() {
+    return this._modules;
+  }
 
   constructor(private path: string) {
     this._modules = ModulesFactory.create(path);
@@ -73,19 +78,61 @@ export class Schema implements ISchema {
   }
 }
 
-export class SchemaWithAuth implements ISchema {
+// const applyAuth = {
+//   apply (target, ctx, args) {
+//     const [, , context] = args;
+//     // no auth on resolver
+//     if (!target.authentication || target.authentication.length === 0) {
+//       return target(...args);
+//     }
+//     if (context.auth.credentials && context.auth.credentials.scope) {
+//       if (context.auth.credentials.scope.some(v => target.authentication.includes(v))) {
+//         return target(...args);
+//       }
+//     }
+//     return new Error('Invalid auth scope to access resolver');
+//   }
+// };
 
-  constructor(private schema: ISchema) {}
+export class SchemaWithAuth implements ISchema {
+  private _modules: IModule[];
+
+  get Modules() {
+    return this._modules;
+  }
+
+  constructor(private schema: ISchema) {
+    this._modules = schema.Modules
+  }
 
   public getTypeDefs(): string[] {
-    // decorate with auth
     return this.schema.getTypeDefs();
   }
 
   public getResolvers(): IResolver[] {
     // decorate with auth
-    return this.schema.getResolvers();
+    return this._modules.map(_module => {
+      return Object.entries(_module.resolvers || []).reduce((acc, [moduleName, resolvers]) => {
+        const resolversWithAuth = this.decorateWithAuth(_module.authentication, resolvers, moduleName);
+        acc = Object.assign({}, { [moduleName]: resolversWithAuth }, acc);
+        return acc;
+      }, <IResolver>{});
+    }, <Array<IResolver>>[]);
   }
+
+  private decorateWithAuth = (authentication: IAuthentication, resolvers: IModuleResolver, moduleName: string = null) =>
+    Object.entries(resolvers || []).reduce((acc, [resolverName, resolver]) => {
+      let resolverWithAuth = resolver;
+      if (authentication) {
+        // HERE ATTACHING PROP
+        resolver.authentication = moduleName
+        ? authentication[moduleName] && authentication[moduleName][resolverName]
+        : authentication[resolverName];
+        resolverWithAuth = new Proxy<Resolver>(resolver, applyAuth);
+      }
+      acc = Object.assign({}, { [resolverName]: resolverWithAuth }, acc);
+      return acc;
+    }, {});
 }
 
 export const GraphQLSchemaFactory = (schema: ISchema): GraphQLSchema => {
