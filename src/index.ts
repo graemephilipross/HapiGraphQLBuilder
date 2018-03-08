@@ -1,6 +1,6 @@
 // tslint:disable:no-empty
 
-import * as  requireDir from 'require-dir';
+import * as  requireDir from 'require-dir'
 import { makeExecutableSchema } from'graphql-tools';
 import { GraphQLSchema } from 'graphql';
 
@@ -11,7 +11,7 @@ export interface IModuleResolver {
 }
 
 export interface IResolver {
-  [key: string]: { [key: string]: Resolver; };
+  [key: string]: IModuleResolver;
 }
 
 export type AuthScopes = {
@@ -27,10 +27,6 @@ export interface IModule {
   moduleResolver?: IModuleResolver;
   resolvers?: IResolver;
   authentication?: IAuthentication;
-}
-
-interface IConfig {
-  path: string;
 }
 
 export class ModulesFactory {
@@ -52,8 +48,7 @@ export class ModulesFactory {
 }
 
 export interface ISchema {
-  getModuleResolvers(): IModuleResolver;
-  getResolvers(): IResolver;
+  getResolvers(): IResolver[];
   getTypeDefs(): string[];
 }
 
@@ -68,32 +63,32 @@ export class Schema implements ISchema {
     return this._modules.map(mod => mod.schema);
   }
 
-  public getModuleResolvers(): IModuleResolver {
-    return this._modules.reduce((moduleArr, _module) => {
-      return Object.entries(_module.moduleResolver || []).reduce((acc, [resolverName, resolver]) => {
-        acc = Object.assign({}, { [resolverName]: resolver }, acc);
-        return acc;
-      }, {});
-    }, []);
-  }
-
-  public getResolvers(): IResolver {
-    return this._modules.reduce((moduleArr, _module) => {
+  public getResolvers(): IResolver[] {
+    return this._modules.map(_module => {
       return Object.entries(_module.resolvers || []).reduce((acc, [resolverName, resolver]) => {
-        // custom scalar case
-        if ('_scalarConfig' in resolver) {
-          acc = Object.assign({}, { [resolverName]: resolver }, acc);
-          return acc;
-        }
-        acc = Object.assign({}, { [resolverName]: resolver }, acc);
+        acc = { [resolverName]: resolver, ...acc }
         return acc;
-      }, {});
-    }, []);
+      }, <IResolver>{});
+    }, <Array<IResolver>>[]);
   }
 }
 
-export const schemaFactory = (path: string): GraphQLSchema => {
-  const schema = new Schema(path);
+export class SchemaWithAuth implements ISchema {
+
+  constructor(private schema: ISchema) {}
+
+  public getTypeDefs(): string[] {
+    // decorate with auth
+    return this.schema.getTypeDefs();
+  }
+
+  public getResolvers(): IResolver[] {
+    // decorate with auth
+    return this.schema.getResolvers();
+  }
+}
+
+export const GraphQLSchemaFactory = (schema: ISchema): GraphQLSchema => {
   const typeDefs = schema.getTypeDefs();
   const resolvers = schema.getResolvers().reduce((acc, resolver) => {
     acc = Object.assign({}, resolver, acc);
@@ -104,3 +99,16 @@ export const schemaFactory = (path: string): GraphQLSchema => {
     resolvers,
   });
 };
+
+export interface IConfig {
+  path: string;
+  auth: Boolean;
+};
+
+export const MakeExecutableSchema = (config: IConfig): GraphQLSchema => {
+  let schema = new Schema(config.path);
+  if (config.auth) {
+    return GraphQLSchemaFactory(new SchemaWithAuth(schema));
+  }
+  return GraphQLSchemaFactory(schema);
+}
