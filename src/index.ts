@@ -1,33 +1,9 @@
 // tslint:disable:no-empty
 
-import * as  requireDir from 'require-dir'
+import * as  requireDir from 'require-dir';
 import { makeExecutableSchema } from'graphql-tools';
 import { GraphQLSchema } from 'graphql';
-
-export type Resolver = (root: any, args: any, context: any, info: any) => any;
-
-export interface IModuleResolver {
-  [key: string]: Resolver;
-}
-
-export interface IResolver {
-  [key: string]: IModuleResolver;
-}
-
-export type AuthScopes = {
-  [key: string]: string[];
-};
-
-export interface IAuthentication {
-  [key: string]: { [key: string]: AuthScopes; };
-}
-
-export interface IModule {
-  schema: string;
-  moduleResolver?: IModuleResolver;
-  resolvers?: IResolver;
-  authentication?: IAuthentication;
-}
+import { Resolver, IModule, IResolver, IModuleResolver, IAuthentication } from './types';
 
 export class ModulesFactory {
 
@@ -48,9 +24,9 @@ export class ModulesFactory {
 }
 
 export interface ISchema {
+  Modules: IModule[];
   getResolvers(): IResolver[];
   getTypeDefs(): string[];
-  Modules: IModule[];
 }
 
 export class Schema implements ISchema {
@@ -71,7 +47,7 @@ export class Schema implements ISchema {
   public getResolvers(): IResolver[] {
     return this._modules.map(_module => {
       return Object.entries(_module.resolvers || []).reduce((acc, [resolverName, resolver]) => {
-        acc = { [resolverName]: resolver, ...acc }
+        acc = { [resolverName]: resolver, ...acc };
         return acc;
       }, <IResolver>{});
     }, <Array<IResolver>>[]);
@@ -86,7 +62,7 @@ export class SchemaWithAuth implements ISchema {
   }
 
   constructor(private schema: ISchema) {
-    this._modules = schema.Modules
+    this._modules = schema.Modules;
   }
 
   public getTypeDefs(): string[] {
@@ -115,10 +91,10 @@ export class SchemaWithAuth implements ISchema {
       }
       acc = Object.assign({}, { [resolverName]: resolverWithAuth }, acc);
       return acc;
-    }, {});
+    }, {})
 }
 
-export const GraphQLSchemaFactory = (schema: ISchema): GraphQLSchema => {
+export const graphQLSchemaFactory = (schema: ISchema): GraphQLSchema => {
   const typeDefs = schema.getTypeDefs();
   const resolvers = schema.getResolvers().reduce((acc, resolver) => {
     acc = Object.assign({}, resolver, acc);
@@ -133,30 +109,32 @@ export const GraphQLSchemaFactory = (schema: ISchema): GraphQLSchema => {
 export interface IConfig {
   path: string;
   auth: Boolean;
-};
+}
 
-export const MakeExecutableSchema = (config: IConfig): GraphQLSchema => {
+export const initExecutableSchema = (config: IConfig): GraphQLSchema => {
   let schema: ISchema = new Schema(config.path);
   if (config.auth) {
     schema = new SchemaWithAuth(schema);
   }
-  return GraphQLSchemaFactory(schema);
-}
+  return graphQLSchemaFactory(schema);
+};
 
 function applyAuth(authentication: any) {
   return {
     apply (target, ctx, args) {
-      const [, , context] = args;
-      // no auth on resolver
-      if (!target.authentication || target.authentication.length === 0) {
-        return target(...args);
-      }
-      if (context.auth.credentials && context.auth.credentials.scope) {
-        if (context.auth.credentials.scope.some(v => target.authentication.includes(v))) {
-          return target(...args);
-        }
-      }
-      return new Error('Invalid auth scope to access resolver');
-    }
-  }
-};
+      return target(...args);
+
+      // const [, , context] = args;
+      // // no auth on resolver
+      // if (!target.authentication || target.authentication.length === 0) {
+      //   return target(...args);
+      // }
+      // if (context.auth.credentials && context.auth.credentials.scope) {
+      //   if (context.auth.credentials.scope.some(v => target.authentication.includes(v))) {
+      //     return target(...args);
+      //   }
+      // }
+      // return new Error('Invalid auth scope to access resolver');
+    },
+  };
+}
