@@ -3,7 +3,7 @@
 import * as  requireDir from 'require-dir';
 import { makeExecutableSchema } from'graphql-tools';
 import { GraphQLSchema } from 'graphql';
-import { Resolver, IModule, IResolver, IModuleResolver, IAuthentication } from './types';
+import { Resolver, IModule, IResolver, IModuleResolver, IAuthentication, AuthCondition } from './types';
 
 export class ModulesFactory {
 
@@ -17,9 +17,9 @@ export class ModulesFactory {
   private static genModuleDefintions(path: string): IModule[] {
     const mods: any[] = requireDir(path);
     return Object.values(mods).reduce((acc, resource) => {
-      acc = [...acc, resource];
+      acc = [...acc, resource.default || {}];
       return acc;
-    }, <Array<IModule>>[]);
+    }, <Array<IModule>>[]).filter(Boolean);
   }
 }
 
@@ -61,7 +61,7 @@ export class SchemaWithAuth implements ISchema {
     return this._modules;
   }
 
-  constructor(private schema: ISchema) {
+  constructor(private schema: ISchema, private authCondition: AuthCondition) {
     this._modules = schema.Modules;
   }
 
@@ -87,7 +87,7 @@ export class SchemaWithAuth implements ISchema {
         const auth = moduleName
         ? authentication[moduleName] && authentication[moduleName][resolverName]
         : authentication[resolverName];
-        resolverWithAuth = new Proxy<Resolver>(resolver, applyAuth(auth));
+        resolverWithAuth = new Proxy<Resolver>(resolver, applyAuth(<string[]>auth, this.authCondition));
       }
       acc = Object.assign({}, { [resolverName]: resolverWithAuth }, acc);
       return acc;
@@ -109,32 +109,34 @@ export const graphQLSchemaFactory = (schema: ISchema): GraphQLSchema => {
 export interface IConfig {
   path: string;
   auth: Boolean;
+  authCondition?: AuthCondition;
 }
 
 export const initExecutableSchema = (config: IConfig): GraphQLSchema => {
   let schema: ISchema = new Schema(config.path);
   if (config.auth) {
-    schema = new SchemaWithAuth(schema);
+    const authCondition = config.authCondition || defaultAuthCondition;
+    schema = new SchemaWithAuth(schema, defaultAuthCondition);
   }
   return graphQLSchemaFactory(schema);
 };
 
-function applyAuth(authentication: any) {
+function applyAuth(authentication: string[], authCondition: AuthCondition) {
   return {
     apply (target, ctx, args) {
-      return target(...args);
-
-      // const [, , context] = args;
-      // // no auth on resolver
-      // if (!target.authentication || target.authentication.length === 0) {
-      //   return target(...args);
-      // }
-      // if (context.auth.credentials && context.auth.credentials.scope) {
-      //   if (context.auth.credentials.scope.some(v => target.authentication.includes(v))) {
-      //     return target(...args);
-      //   }
-      // }
-      // return new Error('Invalid auth scope to access resolver');
+      const [, , context] = args;
+      // no auth on resolver
+      if (!target.authentication || target.authentication.length === 0) {
+        return target(...args);
+      }
+      if (context.auth.credentials && context.auth.credentials.scope) {
+        if (authCondition(context.auth.credentials.scope, target.authentication)) {
+          return target(...args);
+        }
+      }
+      return new Error('Invalid auth scope to access resolver');
     },
   };
 }
+
+const defaultAuthCondition: AuthCondition = (ps, ts) => ps.some(v => ts.includes(v));

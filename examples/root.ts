@@ -17,9 +17,17 @@ const resolvers = {
   },
 };
 
+const authentication = {
+  Query: {
+    parent: ['parentRoot'],
+    child: ['childRoot'],
+  },
+};
+
 const o: IModule = {
   schema,
   resolvers,
+  authentication,
 };
 
 export default o;

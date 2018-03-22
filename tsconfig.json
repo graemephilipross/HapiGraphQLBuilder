@@ -23,7 +23,9 @@
   "include": [
     "src/**/*",
     "test/**/*",
-    "index.ts"
+    "examples/**/*",
+    "index.ts",
+    "example.ts"
   ],
   "exclude": [
     "node_modules",

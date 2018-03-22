@@ -22,6 +22,15 @@
       "outFiles": [
         "${workspaceFolder}/dist/**/*.js"
       ]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Example",
+      "program": "${workspaceFolder}\\dist\\example.js",
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ]
     }
   ]
 }

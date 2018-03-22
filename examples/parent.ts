@@ -24,12 +24,20 @@ const resolvers = {
   },
 };
 
+const authentication = {
+  Parent: {
+    children: ['parent'],
+  },
+};
+
 const moduleResolver = {
   parent,
 };
 
 const o: IModule = {
   schema,
+  resolvers,
+  authentication,
   moduleResolver,
 };
 
