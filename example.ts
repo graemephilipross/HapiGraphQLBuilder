@@ -1,9 +1,9 @@
-import { initExecutableSchema, IConfig } from './src/index';
+import * as graphqlBuilder from './index';
 
-const config: IConfig = {
+const config: graphqlBuilder.IConfig = {
   path: `${__dirname}\\examples`,
   auth: true,
+  authCondition: graphqlBuilder.defaultHapiAuth,
 };
 
-const schema = initExecutableSchema(config);
-console.log(schema);
+const schema = graphqlBuilder.creatExecutableSchema(config);

@@ -3,9 +3,19 @@
 import * as  requireDir from 'require-dir';
 import { makeExecutableSchema } from'graphql-tools';
 import { GraphQLSchema } from 'graphql';
-import { Resolver, IModule, IResolver, IModuleResolver, IAuthentication, AuthCondition } from './types';
+import {
+  Resolver,
+  IModule,
+  IResolver,
+  IModuleResolver,
+  IAuthentication,
+  AuthCondition,
+  IConfig,
+  ISchema,
+} from './types';
+import { applyAuth, nullAuth } from './auth';
 
-export class ModulesFactory {
+class ModulesFactory {
 
   public static create(path: string = ''): IModule[] {
     if (!path) {
@@ -23,13 +33,7 @@ export class ModulesFactory {
   }
 }
 
-export interface ISchema {
-  Modules: IModule[];
-  getResolvers(): IResolver[];
-  getTypeDefs(): string[];
-}
-
-export class Schema implements ISchema {
+class Schema implements ISchema {
   private _modules: IModule[];
 
   get Modules() {
@@ -54,7 +58,7 @@ export class Schema implements ISchema {
   }
 }
 
-export class SchemaWithAuth implements ISchema {
+class SchemaWithAuth implements ISchema {
   private _modules: IModule[];
 
   get Modules() {
@@ -85,8 +89,8 @@ export class SchemaWithAuth implements ISchema {
       let resolverWithAuth = resolver;
       if (authentication) {
         const auth = moduleName
-        ? authentication[moduleName] && authentication[moduleName][resolverName]
-        : authentication[resolverName];
+          ? authentication[moduleName] && authentication[moduleName][resolverName]
+          : authentication[resolverName];
         resolverWithAuth = new Proxy<Resolver>(resolver, applyAuth(<string[]>auth, this.authCondition));
       }
       acc = Object.assign({}, { [resolverName]: resolverWithAuth }, acc);
@@ -94,7 +98,7 @@ export class SchemaWithAuth implements ISchema {
     }, {})
 }
 
-export const graphQLSchemaFactory = (schema: ISchema): GraphQLSchema => {
+const graphQLSchemaFactory = (schema: ISchema): GraphQLSchema => {
   const typeDefs = schema.getTypeDefs();
   const resolvers = schema.getResolvers().reduce((acc, resolver) => {
     acc = Object.assign({}, resolver, acc);
@@ -106,37 +110,11 @@ export const graphQLSchemaFactory = (schema: ISchema): GraphQLSchema => {
   });
 };
 
-export interface IConfig {
-  path: string;
-  auth: Boolean;
-  authCondition?: AuthCondition;
-}
-
-export const initExecutableSchema = (config: IConfig): GraphQLSchema => {
+export const creatExecutableSchema = (config: IConfig): GraphQLSchema => {
   let schema: ISchema = new Schema(config.path);
   if (config.auth) {
-    const authCondition = config.authCondition || defaultAuthCondition;
-    schema = new SchemaWithAuth(schema, defaultAuthCondition);
+    const authCondition = config.authCondition || nullAuth;
+    schema = new SchemaWithAuth(schema, authCondition);
   }
   return graphQLSchemaFactory(schema);
 };
-
-function applyAuth(authentication: string[], authCondition: AuthCondition) {
-  return {
-    apply (target, ctx, args) {
-      const [, , context] = args;
-      // no auth on resolver
-      if (!target.authentication || target.authentication.length === 0) {
-        return target(...args);
-      }
-      if (context.auth.credentials && context.auth.credentials.scope) {
-        if (authCondition(context.auth.credentials.scope, target.authentication)) {
-          return target(...args);
-        }
-      }
-      return new Error('Invalid auth scope to access resolver');
-    },
-  };
-}
-
-const defaultAuthCondition: AuthCondition = (ps, ts) => ps.some(v => ts.includes(v));

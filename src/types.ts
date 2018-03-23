@@ -1,6 +1,6 @@
 export type Resolver = (root: any, args: any, context: any, info: any) => any;
 
-export type AuthCondition = (permittedScopes: string[], targetScopes: string[]) => Boolean;
+export type AuthCondition = (context: any, targetScopes: string[]) => Boolean;
 
 export interface IModuleResolver {
   [key: string]: Resolver;
@@ -8,6 +8,12 @@ export interface IModuleResolver {
 
 export interface IResolver {
   [key: string]: IModuleResolver;
+}
+
+export interface ISchema {
+  Modules: IModule[];
+  getResolvers(): IResolver[];
+  getTypeDefs(): string[];
 }
 
 export type AuthScopes = {
@@ -23,4 +29,10 @@ export interface IModule {
   moduleResolver?: IModuleResolver;
   resolvers?: IResolver;
   authentication?: IAuthentication;
+}
+
+export interface IConfig {
+  path: string;
+  auth: Boolean;
+  authCondition?: AuthCondition;
 }
