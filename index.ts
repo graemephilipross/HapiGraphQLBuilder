@@ -1,4 +1,9 @@
-export { IConfig, AuthCondition } from './src/types';
+export {
+  IConfig,
+  AuthCondition,
+  Resolver,
+  IModule,
+} from './src/types';
 
 export { creatExecutableSchema } from './src/index';
 
