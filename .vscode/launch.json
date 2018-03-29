@@ -31,6 +31,20 @@
       "outFiles": [
         "${workspaceFolder}/dist/**/*.js"
       ]
+    },
+    {
+      "name": "Debug Tests",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+      "stopOnEntry": false,
+      "sourceMaps": true,
+      "args": ["${workspaceFolder}/dist/test/specs/**/*.js", "--no-timeouts"],
+      "cwd": "${workspaceRoot}",
+      "runtimeExecutable": null,
+      "outFiles": [
+        "${workspaceFolder}/dist/test/specs/**/*.js"
+      ]
     }
   ]
 }
